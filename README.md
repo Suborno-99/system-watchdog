@@ -6,8 +6,9 @@
 *Fixes network connectivity drops, monitors local services, and heals systems without rebooting.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Arch Linux](https://img.shields.io/badge/Arch%20Linux-Supported-1793d1.svg?logo=arch-linux&logoColor=white)]()
+[![Ubuntu / Debian](https://img.shields.io/badge/Ubuntu%20%2F%20Debian-Supported-E95420.svg?logo=ubuntu&logoColor=white)]()
 [![Shell](https://img.shields.io/badge/Shell-Bash%204%2B-green.svg)]()
-[![Platform](https://img.shields.io/badge/Platform-Linux-orange.svg)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)]()
 
 </div>
@@ -16,17 +17,59 @@
 
 ## ⚡ The Problem
 
-On many Linux machines (especially systems with **Realtek r8169/r8168** Ethernet controllers, unstable Wi-Fi adapters, or fluctuating DHCP leases), network connectivity occasionally drops.
+On Linux systems (especially machines with **Realtek r8169/r8168** Ethernet controllers, volatile Wi-Fi chips, or flaky DHCP leases), network connectivity can suddenly drop.
 
-By default, NetworkManager attempts to reconnect 4 times and then gives up, forcing users to **reboot their entire computer** just to regain internet connectivity.
+By default, NetworkManager retries 4 times and gives up, while minimal systems (like Arch with systemd-networkd or dhcpcd) often leave interfaces in a silent stalled state. Users are forced to **reboot their computer** just to regain internet connectivity.
 
 ## 💡 The Solution
 
-**System Watchdog** runs silently in the background:
-1. **Health Checks:** Monitors network connectivity and critical services every 4 seconds.
-2. **Debounce Timer (4s):** When a drop occurs, it waits a configurable **4-second confirmation timer** to prevent false alarms from temporary network blips.
-3. **Escalating Auto-Recovery:** If still down, it automatically reactivates the network profile, bounces the interface, and cycles networking subsystems — **restoring full connectivity in seconds without a reboot**.
-4. **Pluggable Architecture:** You can effortlessly drop in new custom checks (APIs, Docker, Databases) and actions (restarting containers, running hooks, sending webhooks).
+**System Watchdog** runs in the background and takes care of it:
+1. **Health Checks:** Monitors gateway/DNS connectivity and critical services every 4 seconds.
+2. **Debounce Timer (4s):** When a drop occurs, it waits a configurable **4-second confirmation timer** to prevent false triggers from transient latency.
+3. **Escalating Multi-Backend Recovery:** Restores connectivity in seconds without a reboot.
+   - **NetworkManager** (`nmcli` profile reactivation & device bounce)
+   - **systemd-networkd** (`networkctl reconfigure`)
+   - **Universal Kernel Link Bounce** (`ip link` down/up + DHCP renewal)
+4. **Pluggable Architecture:** Effortlessly add custom checks (APIs, Docker, Databases) and actions (restarting containers, running hooks, sending webhooks).
+
+---
+
+## 🐧 Arch Linux Support
+
+System Watchdog is **100% compatible with Arch Linux**:
+- **Network Backends:** Works with `NetworkManager`, `systemd-networkd`, or standard `iproute2` / `dhcpcd` / `iwd`.
+- **Desktop Environments & Window Managers:** Runs seamlessly on GNOME, KDE Plasma, Cinnamon, XFCE, as well as tiling window managers like **Hyprland**, **Sway**, and **i3** via `systemd --user`.
+- **Zsh & Bash:** Automatically detects and configures aliases for both `~/.bashrc` and `~/.zshrc`.
+- **Arch Packaging:** Includes a ready-to-build [`PKGBUILD`](PKGBUILD) for native Arch packaging.
+
+### Dependencies on Arch Linux:
+```bash
+sudo pacman -S --needed bash iproute2 iputils
+# Optional (recommended):
+sudo pacman -S --needed networkmanager libnotify
+```
+
+---
+
+## 🚀 Installation
+
+### Option 1: Universal One-Command Installer (Arch, Debian, Ubuntu, Fedora)
+```bash
+git clone https://github.com/<your-username>/system-watchdog.git
+cd system-watchdog
+./install.sh
+```
+
+### Option 2: Native Arch Linux Package (`PKGBUILD`)
+```bash
+git clone https://github.com/<your-username>/system-watchdog.git
+cd system-watchdog
+makepkg -si
+```
+Then enable the systemd user service:
+```bash
+systemctl --user enable --now system-watchdog.service
+```
 
 ---
 
@@ -37,45 +80,27 @@ system-watchdog/
 ├── bin/
 │   └── watchdog            # Core CLI and daemon orchestrator
 ├── checks/                 # Pluggable health checks (*.sh)
-│   ├── 10-internet.sh      # Pings DNS/gateway + checks NetworkManager
+│   ├── 10-internet.sh      # Pings DNS/gateway + checks NetworkManager/networkd
 │   ├── 20-docker.sh.example# Example: Docker container check
 │   └── 30-http-api.sh.example # Example: Backend API / webhook check
 ├── actions/                # Pluggable recovery actions (*.sh)
-│   ├── 10-reconnect-network.sh # Re-activates network profile & interface
-│   ├── 20-notify.sh        # Cinnamon / GNOME desktop notifications
+│   ├── 10-reconnect-network.sh # Multi-backend auto-reconnection
+│   ├── 20-notify.sh        # Desktop notifications via notify-send
 │   ├── 30-flush-dns.sh.example # Example: DNS cache flusher
-│   └── 40-restart-service.sh.example # Example: Service / container restarter
-├── templates/              # Boilerplate templates for new modules
+│   └── 40-restart-service.sh.example # Example: Service/container restart hook
+├── templates/              # Scaffolding templates for new modules
 │   ├── check-template.sh
 │   └── action-template.sh
 ├── dashboard/              # Standalone visual web dashboard
 │   └── index.html
 ├── autostart/              # Desktop session autostart entry
-├── systemd/                # Optional systemd user service
+├── systemd/                # systemd user service unit
+├── PKGBUILD                # Arch Linux package build recipe
 ├── config.conf.example     # Configuration template
-├── install.sh              # 1-command installer
+├── install.sh              # Universal installer
 ├── uninstall.sh            # Clean uninstaller
 └── README.md
 ```
-
----
-
-## 🚀 Quick Start
-
-### 1. Installation
-Clone the repository and run the installer:
-```bash
-git clone https://github.com/<your-username>/system-watchdog.git
-cd system-watchdog
-./install.sh
-```
-
-The installer will:
-- Link the `watchdog` CLI into `~/.local/bin/watchdog`
-- Configure desktop autostart so it launches on boot/login
-- Place the visual dashboard on your Desktop
-- Add convenient shell aliases (`watchdog`, `reconnect`, `net-status`)
-- Start the watchdog daemon immediately
 
 ---
 
@@ -99,7 +124,6 @@ The installer will:
 ## 🧩 Adding Custom Features
 
 ### 1. Add a New Health Check (e.g. Check an API, Database, or VPN)
-Run:
 ```bash
 watchdog new check my-api
 ```
@@ -121,7 +145,6 @@ watchdog test
 ```
 
 ### 2. Add a Custom Recovery Action (e.g. Restart Docker Container)
-Run:
 ```bash
 watchdog new action restart-my-app
 ```
@@ -131,7 +154,7 @@ Edit `actions/restart-my-app.sh`:
 action_name="Restart App Container"
 
 action_run() {
-    local failed_check="$1"   # Name of the failed check
+    local failed_check="$1"
     watchdog_log "Healing action running for: $failed_check"
 
     # Put your healing logic here:
@@ -156,11 +179,6 @@ PING_TARGETS=("1.1.1.1" "8.8.8.8" "192.168.29.1")
 # Desktop Notifications
 NOTIFY_ON_RECOVERY=true      # Send desktop notifications on recovery
 ```
-
----
-
-## 🖥️ Visual Web Dashboard
-Double-click `dashboard/index.html` (or the shortcut created on your Desktop) to open the interactive status dashboard in your browser.
 
 ---
 
