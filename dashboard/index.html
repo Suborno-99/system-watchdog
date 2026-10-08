@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Watchdog & Auto-Healer Dashboard</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0ea5e9;
+      --green: #4ade80;
+      --yellow: #facc15;
+      --purple: #c084fc;
+      --code-bg: #030712;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      padding: 36px 20px 60px;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    header {
+      margin-bottom: 28px;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 20px;
+    }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .badge-status {
+      font-size: 13px;
+      background: rgba(74, 222, 128, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(74, 222, 128, 0.4);
+      padding: 3px 12px;
+      border-radius: 9999px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .badge-status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+      display: inline-block;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.4; }
+      50% { opacity: 1; }
+      100% { opacity: 0.4; }
+    }
+    .subtitle {
+      color: var(--text-muted);
+      margin-top: 6px;
+      font-size: 15px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+    h2 {
+      font-size: 18px;
+      color: var(--accent);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    p {
+      color: #cbd5e1;
+      font-size: 14.5px;
+      margin-bottom: 12px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 14px 0;
+    }
+    @media (max-width: 680px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .module-box {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .module-box h3 {
+      font-size: 15px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .tag {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .tag-active { background: rgba(74, 222, 128, 0.2); color: var(--green); }
+    .tag-example { background: rgba(250, 204, 21, 0.2); color: var(--yellow); }
+    .module-box p {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .tree-box {
+      background: var(--code-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13.5px;
+      color: #93c5fd;
+      line-height: 1.5;
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+    .tree-comment { color: var(--text-muted); }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: var(--code-bg);
+      padding: 2px 7px;
+      border-radius: 5px;
+      color: #38bdf8;
+      font-size: 13.5px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    pre {
+      background: var(--code-bg);
+      padding: 14px 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      border: 1px solid var(--card-border);
+      margin: 10px 0;
+    }
+    pre code {
+      background: transparent;
+      padding: 0;
+      border: none;
+      color: #e2e8f0;
+      font-size: 13px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--card-border);
+      font-size: 14px;
+    }
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+    .step-card {
+      border-left: 3px solid var(--accent);
+      padding-left: 16px;
+      margin: 16px 0;
+    }
+    .step-card h4 {
+      font-size: 15px;
+      color: #e2e8f0;
+      margin-bottom: 6px;
+    }
+    footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-top: 36px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-top">
+        <h1>System Watchdog & Auto-Healer</h1>
+        <div class="badge-status">Running in Background</div>
+      </div>
+      <p class="subtitle">Modular, pluggable system health monitoring, debounced timers, and auto-recovery.</p>
+    </header>
+
+    <!-- Architecture & Structure -->
+    <div class="card">
+      <h2>📁 Modular Architecture</h2>
+      <p>The watchdog is fully structured into pluggable checks and actions. You can add new features by simply dropping a script into <code>checks/</code> or <code>actions/</code>.</p>
+      
+      <div class="tree-box">
+~/.config/system-watchdog/
+├── <span style="color:#f8fafc;font-weight:bold;">config.conf</span>          <span class="tree-comment"># Timing (4s check, 4s delay), ping endpoints, toggles</span>
+├── <span style="color:#f8fafc;font-weight:bold;">watchdog</span>             <span class="tree-comment"># CLI manager (status, test, start, stop, new)</span>
+├── <span style="color:#38bdf8;font-weight:bold;">checks/</span>              <span class="tree-comment"># Health check scripts (*.sh)</span>
+│   ├── 10-internet.sh       <span class="tree-comment"># [Active] Ping DNS/Gateway + NetworkManager check</span>
+│   └── 20-docker.sh.example <span class="tree-comment"># [Example] Check docker service & containers</span>
+├── <span style="color:#4ade80;font-weight:bold;">actions/</span>             <span class="tree-comment"># Recovery actions (*.sh)</span>
+│   ├── 10-reconnect-network.sh <span class="tree-comment"># [Active] Auto-reconnect profile / bounce interface</span>
+│   ├── 20-notify.sh            <span class="tree-comment"># [Active] Cinnamon desktop notification</span>
+│   └── 30-custom-command.sh.example
+├── <span style="color:#c084fc;font-weight:bold;">templates/</span>           <span class="tree-comment"># Templates for scaffolding new features</span>
+└── <span style="color:#facc15;font-weight:bold;">logs/watchdog.log</span>    <span class="tree-comment"># Live logs & history</span>
+      </div>
+    </div>
+
+    <!-- Active Features -->
+    <div class="card">
+      <h2>⚡ Installed Features & Modules</h2>
+      <div class="grid-2">
+        <div class="module-box">
+          <h3>Internet Check <span class="tag tag-active">Active</span></h3>
+          <p>Runs every 4 seconds. Pings DNS (1.1.1.1, 8.8.8.8, gateway) and verifies NetworkManager status.</p>
+          <code>checks/10-internet.sh</code>
+        </div>
+        <div class="module-box">
+          <h3>Network Auto-Reconnect <span class="tag tag-active">Active</span></h3>
+          <p>Debounced by 4-second confirmation timer. Reactivates connection, bounces interface if stalled.</p>
+          <code>actions/10-reconnect-network.sh</code>
+        </div>
+        <div class="module-box">
+          <h3>Desktop Notifier <span class="tag tag-active">Active</span></h3>
+          <p>Pops a Cinnamon desktop alert whenever a service or network connection is healed.</p>
+          <code>actions/20-notify.sh</code>
+        </div>
+        <div class="module-box">
+          <h3>Docker Health <span class="tag tag-example">Example</span></h3>
+          <p>Can monitor Docker daemon and critical dev database containers.</p>
+          <code>checks/20-docker.sh.example</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- How to Add Features -->
+    <div class="card">
+      <h2>🚀 How to Add More Features in 2 Minutes</h2>
+      <p>Want to monitor a new service, an API endpoint, a VPN, or run a custom recovery script? Follow these simple steps:</p>
+
+      <div class="step-card">
+        <h4>Step 1: Create a New Health Check</h4>
+        <p>Run the scaffolding command in terminal:</p>
+        <pre><code>watchdog new check my-api</code></pre>
+        <p>Edit <code>~/.config/system-watchdog/checks/my-api.sh</code> to test your service:</p>
+        <pre><code>check_name="My API Health"
+check_description="Verifies API on port 3000 is responding"
+
+check_run() {
+    curl -sf http://localhost:3000 >/dev/null 2>&1
+    return $?  # Return 0 if healthy, non-zero if failing
+}</code></pre>
+      </div>
+
+      <div class="step-card">
+        <h4>Step 2: Test Your Check Immediately</h4>
+        <pre><code>watchdog test</code></pre>
+        <p>You'll see a green <code>PASSED</code> or red <code>FAILED</code> badge for all your checks!</p>
+      </div>
+
+      <div class="step-card">
+        <h4>Step 3: (Optional) Add a Custom Recovery Action</h4>
+        <p>If you want a specific recovery action (like restarting a service, flushing cache, or sending a webhook):</p>
+        <pre><code>watchdog new action restart-my-service</code></pre>
+        <p>Edit <code>~/.config/system-watchdog/actions/restart-my-service.sh</code>:</p>
+        <pre><code>action_name="Restart Web Service"
+
+action_run() {
+    local failed_check="$1"
+    watchdog_log "Healing triggered for: $failed_check"
+    # Example: systemctl --user restart my-service
+    # Example: docker restart my-container
+    return 0
+}</code></pre>
+      </div>
+    </div>
+
+    <!-- Terminal Command Reference -->
+    <div class="card">
+      <h2>🛠️ Command Line Reference</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Command</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>watchdog status</code> (or <code>net-status</code>)</td>
+            <td>Shows running status (PID), active modules, and recent logs.</td>
+          </tr>
+          <tr>
+            <td><code>watchdog test</code></td>
+            <td>Runs all health checks right now and displays PASS/FAIL.</td>
+          </tr>
+          <tr>
+            <td><code>watchdog reconnect</code> (or <code>reconnect</code>)</td>
+            <td>Triggers network/recovery actions immediately without waiting.</td>
+          </tr>
+          <tr>
+            <td><code>watchdog list</code></td>
+            <td>Lists all installed checks and actions.</td>
+          </tr>
+          <tr>
+            <td><code>watchdog logs</code></td>
+            <td>Streams live log output (<code>tail -f</code>).</td>
+          </tr>
+          <tr>
+            <td><code>watchdog restart</code></td>
+            <td>Restarts the daemon (reloads configuration and new modules).</td>
+          </tr>
+          <tr>
+            <td><code>watchdog new check &lt;name&gt;</code></td>
+            <td>Scaffolds a new health check script.</td>
+          </tr>
+          <tr>
+            <td><code>watchdog new action &lt;name&gt;</code></td>
+            <td>Scaffolds a new recovery action script.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <footer>
+      System Watchdog & Auto-Healer • Running locally at ~/.config/system-watchdog
+    </footer>
+  </div>
+</body>
+</html>

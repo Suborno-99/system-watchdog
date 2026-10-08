@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Example Check: HTTP API / Webhook Endpoint
+# Rename to '30-http-api.sh' (remove .example) to activate!
+# ==============================================================================
+
+check_name="HTTP API Health Check"
+check_description="Verifies local backend API or remote service responds with HTTP 200"
+
+check_run() {
+    # Customize your API URL:
+    local url="http://localhost:3000/health"
+    
+    # Test HTTP endpoint with 2s timeout
+    local status_code
+    status_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 2 "$url" 2>/dev/null)
+
+    if [ "$status_code" = "200" ]; then
+        return 0
+    fi
+    return 1
+}

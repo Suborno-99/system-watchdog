@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=System Watchdog
+Comment=Auto-reconnects network and heals services
+Exec=/home/admin-work/.local/bin/watchdog start
+Terminal=false
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true

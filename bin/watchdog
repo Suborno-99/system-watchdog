@@ -1,0 +1,350 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# System Watchdog & Auto-Healer - Core Engine & CLI
+# ==============================================================================
+
+# Dynamic Base Directory Detection
+TARGET="$(readlink -f "${BASH_SOURCE[0]}")"
+DIR="$(dirname "$TARGET")"
+
+if [ -d "$DIR/../checks" ]; then
+    BASE_DIR="$(cd "$DIR/.." && pwd)"
+elif [ -d "$DIR/checks" ]; then
+    BASE_DIR="$DIR"
+elif [ -d "$HOME/.config/system-watchdog/checks" ]; then
+    BASE_DIR="$HOME/.config/system-watchdog"
+else
+    BASE_DIR="$(cd "$DIR/.." && pwd)"
+fi
+
+CONFIG_FILE="${BASE_DIR}/config.conf"
+CHECKS_DIR="${BASE_DIR}/checks"
+ACTIONS_DIR="${BASE_DIR}/actions"
+TEMPLATES_DIR="${BASE_DIR}/templates"
+LOGS_DIR="${BASE_DIR}/logs"
+
+# Load Configuration if available
+if [ -f "$CONFIG_FILE" ]; then
+    # shellcheck disable=SC1090
+    source "$CONFIG_FILE"
+fi
+
+PID_FILE="${PID_FILE:-${BASE_DIR}/watchdog.pid}"
+LOG_FILE="${LOG_FILE:-${LOGS_DIR}/watchdog.log}"
+CHECK_INTERVAL="${CHECK_INTERVAL:-4}"
+FAIL_CONFIRM_DELAY="${FAIL_CONFIRM_DELAY:-4}"
+
+# Logging helper
+watchdog_log() {
+    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+    mkdir -p "$(dirname "$LOG_FILE")"
+    echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
+    if [ -t 1 ]; then
+        echo "$msg"
+    fi
+}
+
+# Run all checks, return 0 if all pass, 1 if any fail
+# If a check fails, exports LAST_FAILED_CHECK
+checks_pass() {
+    for check_file in "$CHECKS_DIR"/*.sh; do
+        [ -e "$check_file" ] || continue
+        # Skip .example files
+        [[ "$check_file" == *.example ]] && continue
+
+        # Clear variables and source check
+        check_name=""
+        check_run() { return 0; }
+        # shellcheck disable=SC1090
+        source "$check_file"
+
+        if ! check_run; then
+            LAST_FAILED_CHECK="${check_name:-$(basename "$check_file")}"
+            return 1
+        fi
+    done
+    return 0
+}
+
+# Execute all active recovery actions
+execute_actions() {
+    local failed_check="$1"
+    local recovered=false
+
+    for action_file in "$ACTIONS_DIR"/*.sh; do
+        [ -e "$action_file" ] || continue
+        [[ "$action_file" == *.example ]] && continue
+
+        action_name=""
+        action_run() { return 0; }
+        # shellcheck disable=SC1090
+        source "$action_file"
+
+        if action_run "$failed_check"; then
+            recovered=true
+        fi
+    done
+
+    # Notify outcome
+    if [ -f "$ACTIONS_DIR/20-notify.sh" ]; then
+        action_run() { return 0; }
+        # shellcheck disable=SC1090
+        source "$ACTIONS_DIR/20-notify.sh"
+        if [ "$recovered" = true ]; then
+            action_run "$failed_check" "recovered"
+        else
+            action_run "$failed_check" "failed"
+        fi
+    fi
+}
+
+# Daemon Loop
+daemon_loop() {
+    mkdir -p "$(dirname "$PID_FILE")" "$(dirname "$LOG_FILE")"
+    echo $$ > "$PID_FILE"
+    trap 'rm -f "$PID_FILE"; exit 0' SIGTERM SIGINT SIGHUP EXIT
+
+    watchdog_log "System Watchdog started (PID $$). Checking every ${CHECK_INTERVAL}s, confirm delay ${FAIL_CONFIRM_DELAY}s."
+
+    while true; do
+        if ! checks_pass; then
+            local failed="$LAST_FAILED_CHECK"
+            watchdog_log "Check failed: '$failed'. Waiting ${FAIL_CONFIRM_DELAY}s confirmation timer..."
+            sleep "$FAIL_CONFIRM_DELAY"
+
+            # Check again to confirm persistent failure
+            if ! checks_pass; then
+                watchdog_log "Failure confirmed for '$failed'. Triggering recovery actions..."
+                execute_actions "$failed"
+            else
+                watchdog_log "Check '$failed' recovered within confirmation window."
+            fi
+        fi
+        sleep "$CHECK_INTERVAL"
+    done
+}
+
+# CLI Commands
+cmd_status() {
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null; then
+        echo "🟢 System Watchdog is RUNNING (PID $(cat "$PID_FILE"))."
+    else
+        echo "🔴 System Watchdog is NOT running."
+    fi
+
+    echo ""
+    echo "📋 Active Check Modules in $CHECKS_DIR:"
+    for f in "$CHECKS_DIR"/*.sh; do
+        [ -e "$f" ] || continue
+        check_name=""
+        check_description=""
+        # shellcheck disable=SC1090
+        source "$f"
+        echo "  • $(basename "$f") - ${check_name:-Active} (${check_description:-No description})"
+    done
+
+    echo ""
+    echo "⚡ Active Action Modules in $ACTIONS_DIR:"
+    for f in "$ACTIONS_DIR"/*.sh; do
+        [ -e "$f" ] || continue
+        action_name=""
+        action_description=""
+        # shellcheck disable=SC1090
+        source "$f"
+        echo "  • $(basename "$f") - ${action_name:-Active} (${action_description:-No description})"
+    done
+
+    if [ -f "$LOG_FILE" ]; then
+        echo ""
+        echo "📜 Recent Log Entries ($LOG_FILE):"
+        tail -n 8 "$LOG_FILE"
+    fi
+}
+
+cmd_start() {
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null; then
+        echo "Watchdog is already running (PID $(cat "$PID_FILE"))."
+        return 0
+    fi
+    mkdir -p "$(dirname "$PID_FILE")" "$(dirname "$LOG_FILE")"
+    setsid "$0" run </dev/null >/dev/null 2>&1 &
+    sleep 1
+    cmd_status
+}
+
+cmd_stop() {
+    if [ -f "$PID_FILE" ]; then
+        local pid
+        pid=$(cat "$PID_FILE" 2>/dev/null)
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null
+            rm -f "$PID_FILE"
+            echo "Stopped System Watchdog (PID $pid)."
+            return 0
+        fi
+    fi
+    echo "Watchdog is not running."
+}
+
+cmd_restart() {
+    cmd_stop
+    sleep 1
+    cmd_start
+}
+
+cmd_test() {
+    echo "🔍 Running Health Checks..."
+    local any_fail=false
+    for check_file in "$CHECKS_DIR"/*.sh; do
+        [ -e "$check_file" ] || continue
+        check_name=""
+        check_description=""
+        check_run() { return 0; }
+        # shellcheck disable=SC1090
+        source "$check_file"
+
+        echo -n "  • [$(basename "$check_file")] ${check_name:-Check}... "
+        if check_run; then
+            echo -e "\e[32mPASSED\e[0m"
+        else
+            echo -e "\e[31mFAILED\e[0m"
+            any_fail=true
+        fi
+    done
+
+    if [ "$any_fail" = true ]; then
+        echo "⚠️  One or more health checks failed."
+        return 1
+    else
+        echo "✅ All health checks passed successfully."
+        return 0
+    fi
+}
+
+cmd_reconnect() {
+    echo "🚀 Running manual recovery sequence..."
+    execute_actions "manual"
+}
+
+cmd_list() {
+    echo "📦 Check Modules ($CHECKS_DIR):"
+    for f in "$CHECKS_DIR"/*; do
+        [ -e "$f" ] || continue
+        local status="[ACTIVE]"
+        [[ "$f" == *.example ]] && status="[DISABLED EXAMPLE]"
+        echo "  $status $(basename "$f")"
+    done
+    echo ""
+    echo "⚡ Action Modules ($ACTIONS_DIR):"
+    for f in "$ACTIONS_DIR"/*; do
+        [ -e "$f" ] || continue
+        local status="[ACTIVE]"
+        [[ "$f" == *.example ]] && status="[DISABLED EXAMPLE]"
+        echo "  $status $(basename "$f")"
+    done
+}
+
+cmd_new() {
+    local type="$1"
+    local name="$2"
+    if [ -z "$type" ] || [ -z "$name" ]; then
+        echo "Usage: watchdog new [check|action] <name>"
+        echo "Example: watchdog new check ping-my-api"
+        return 1
+    fi
+
+    name="${name%.sh}"
+
+    if [ "$type" = "check" ]; then
+        local target="${CHECKS_DIR}/${name}.sh"
+        if [ -e "$target" ]; then
+            echo "Error: $target already exists."
+            return 1
+        fi
+        cp "${TEMPLATES_DIR}/check-template.sh" "$target"
+        chmod +x "$target"
+        echo "✅ Created new check module: $target"
+        echo "Edit this file to implement your test logic!"
+    elif [ "$type" = "action" ]; then
+        local target="${ACTIONS_DIR}/${name}.sh"
+        if [ -e "$target" ]; then
+            echo "Error: $target already exists."
+            return 1
+        fi
+        cp "${TEMPLATES_DIR}/action-template.sh" "$target"
+        chmod +x "$target"
+        echo "✅ Created new action module: $target"
+        echo "Edit this file to implement your recovery logic!"
+    else
+        echo "Invalid type: '$type'. Use 'check' or 'action'."
+        return 1
+    fi
+}
+
+cmd_logs() {
+    if [ ! -f "$LOG_FILE" ]; then
+        echo "Log file does not exist yet ($LOG_FILE)."
+        return 1
+    fi
+    tail -n 20 -f "$LOG_FILE"
+}
+
+# Main entry dispatcher
+case "$1" in
+    run)
+        daemon_loop
+        ;;
+    start)
+        cmd_start
+        ;;
+    stop)
+        cmd_stop
+        ;;
+    restart)
+        cmd_restart
+        ;;
+    status)
+        cmd_status
+        ;;
+    test)
+        cmd_test
+        ;;
+    reconnect|recover|--now)
+        cmd_reconnect
+        ;;
+    list)
+        cmd_list
+        ;;
+    new)
+        cmd_new "$2" "$3"
+        ;;
+    logs)
+        cmd_logs
+        ;;
+    --status)
+        cmd_status
+        ;;
+    --stop)
+        cmd_stop
+        ;;
+    --reconnect)
+        cmd_reconnect
+        ;;
+    *)
+        echo "System Watchdog & Auto-Healer"
+        echo "Usage: watchdog <command>"
+        echo ""
+        echo "Commands:"
+        echo "  status       Show current status, active modules, and recent logs"
+        echo "  test         Run all health checks once and show PASS/FAIL"
+        echo "  reconnect    Trigger recovery actions immediately"
+        echo "  start        Start background daemon"
+        echo "  stop         Stop background daemon"
+        echo "  restart      Restart daemon (reloads config & modules)"
+        echo "  list         List all installed check and action modules"
+        echo "  logs         Stream live log output (tail -f)"
+        echo "  new check    Scaffold a new check module (e.g. watchdog new check my-api)"
+        echo "  new action   Scaffold a new action module (e.g. watchdog new action my-task)"
+        exit 1
+        ;;
+esac

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Example Action: Custom Command / Webhook / Service Restart
+# Rename to '30-custom-command.sh' (remove .example) to activate!
+# ==============================================================================
+
+action_name="Custom Command Trigger"
+action_description="Runs user-defined commands, restarts services, or triggers webhooks"
+
+action_run() {
+    local failed_check="$1"
+
+    watchdog_log "Executing custom action hook for check: $failed_check"
+
+    # Example 1: Flush systemd-resolved DNS cache
+    # resolvectl flush-caches 2>/dev/null || true
+
+    # Example 2: Trigger a webhook or curl
+    # curl -s -X POST https://example.com/api/notify -d '{"event":"recovered"}' >/dev/null 2>&1 || true
+
+    # Example 3: Restart a docker container if docker check failed
+    # if [[ "$failed_check" == *"docker"* ]]; then
+    #     docker restart mysql-db-1 >/dev/null 2>&1 || true
+    # fi
+
+    return 0
+}

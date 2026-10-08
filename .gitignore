@@ -1,0 +1,16 @@
+# Runtime files
+*.pid
+watchdog.pid
+logs/
+*.log
+
+# Local user overrides
+config.conf.local
+
+# System & editor files
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/

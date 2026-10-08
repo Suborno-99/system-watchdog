@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Example Check: Docker Daemon & Containers
+# Rename to '20-docker.sh' (remove .example) to activate!
+# ==============================================================================
+
+check_name="Docker Service Health"
+check_description="Verifies Docker daemon is responding and key containers are running"
+
+check_run() {
+    # Check if docker daemon is responsive
+    if ! docker info >/dev/null 2>&1; then
+        return 1
+    fi
+
+    # Example: Check if a specific container (e.g. mysql-db-1) is running
+    # if ! docker ps --filter "name=mysql-db-1" --filter "status=running" | grep -q "mysql-db-1"; then
+    #     return 1
+    # fi
+
+    return 0
+}

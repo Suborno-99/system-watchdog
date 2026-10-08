@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Example Action: Service Restart Hook
+# Rename to '40-restart-service.sh' (remove .example) to activate!
+# ==============================================================================
+
+action_name="Service Restarter"
+action_description="Restarts a user systemd service or Docker container when a check fails"
+
+action_run() {
+    local failed_check="$1"
+
+    # Only run if a specific check failed
+    if [[ "$failed_check" == *"API"* || "$failed_check" == *"Docker"* ]]; then
+        watchdog_log "Restarting service due to failure in '$failed_check'..."
+
+        # Example 1: Restart systemd user unit
+        # systemctl --user restart my-api-service 2>/dev/null || true
+
+        # Example 2: Restart docker container
+        # docker restart my-api-container 2>/dev/null || true
+        return 0
+    fi
+    return 0
+}

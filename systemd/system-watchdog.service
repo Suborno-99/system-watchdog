@@ -1,0 +1,12 @@
+[Unit]
+Description=System Watchdog & Auto-Healer Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/watchdog run
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

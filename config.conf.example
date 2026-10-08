@@ -1,0 +1,23 @@
+# ==============================================================================
+# System Watchdog & Auto-Healer Configuration
+# ==============================================================================
+
+# Core Timing (in seconds)
+CHECK_INTERVAL=4             # Frequency of routine health checks
+FAIL_CONFIRM_DELAY=4         # Delay timer to verify failure before taking action
+
+# Health Check Targets
+PING_TARGETS=("1.1.1.1" "8.8.8.8" "192.168.29.1")
+
+# Network Interface & Profile Defaults (auto-detected if blank)
+DEFAULT_INTERFACE=""         # e.g., "enp2s0" (leave empty for auto-detect)
+DEFAULT_PROFILE=""           # e.g., "Profile 1" (leave empty for auto-detect)
+
+# Notifications
+NOTIFY_ON_RECOVERY=true      # Send desktop notification when healed
+NOTIFY_ON_FAILURE=false      # Send notification immediately when check fails
+
+# Paths & Logging (defaults to directory containing watchdog)
+LOG_FILE=""                  # Leave blank to use ./logs/watchdog.log
+PID_FILE=""                  # Leave blank to use ./watchdog.pid
+MAX_LOG_LINES=5000           # Auto-truncate log if it gets too large
