@@ -34,6 +34,14 @@ action_run() {
         [ -z "$con_name" ] && con_name="${DEFAULT_PROFILE:-Profile 1}"
     fi
 
+    flush_dns() {
+        if command -v resolvectl >/dev/null 2>&1; then
+            resolvectl flush-caches 2>/dev/null || true
+        elif command -v systemd-resolve >/dev/null 2>&1; then
+            systemd-resolve --flush-caches 2>/dev/null || true
+        fi
+    }
+
     watchdog_log "Attempting network recovery on interface '$dev_name'..."
 
     # -------------------------------------------------------------------------
@@ -42,8 +50,10 @@ action_run() {
     if command -v nmcli >/dev/null 2>&1; then
         # Step A1: Profile re-activation
         nmcli connection up "$con_name" >/dev/null 2>&1 || nmcli device connect "$dev_name" >/dev/null 2>&1
+        flush_dns
         sleep 3
         if checks_pass; then
+            flush_dns
             watchdog_log "Reconnected successfully via NetworkManager profile activation."
             return 0
         fi
@@ -53,8 +63,10 @@ action_run() {
         nmcli device disconnect "$dev_name" >/dev/null 2>&1
         sleep 2
         nmcli device connect "$dev_name" >/dev/null 2>&1 || nmcli connection up "$con_name" >/dev/null 2>&1
-        sleep 3
+        flush_dns
+        sleep 4
         if checks_pass; then
+            flush_dns
             watchdog_log "Reconnected successfully after bouncing device."
             return 0
         fi
@@ -64,8 +76,10 @@ action_run() {
         nmcli networking off >/dev/null 2>&1
         sleep 2
         nmcli networking on >/dev/null 2>&1
-        sleep 4
+        flush_dns
+        sleep 5
         if checks_pass; then
+            flush_dns
             watchdog_log "Reconnected successfully after networking toggle."
             return 0
         fi

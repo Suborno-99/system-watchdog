@@ -8,33 +8,44 @@ check_name="Internet & Gateway Connectivity"
 check_description="Pings DNS/gateway targets and queries NetworkManager or systemd-networkd status"
 
 check_run() {
-    # 1. Dynamically discover default gateway
-    local gateway
-    gateway=$(ip route show default 2>/dev/null | awk '{print $3}' | head -n1)
+    # 1. Quick real-world web check (verifies DNS + WAN HTTP, exactly what browser search requires)
+    if curl -s --head --request GET --connect-timeout 2 --max-time 3 http://connectivity-check.ubuntu.com >/dev/null 2>&1 \
+       || curl -s --head --request GET --connect-timeout 2 --max-time 3 http://www.google.com >/dev/null 2>&1; then
+        return 0
+    fi
 
-    # 2. Combine configured targets with auto-detected gateway
-    local targets=("${PING_TARGETS[@]}")
-    [ -n "$gateway" ] && targets+=("$gateway")
-
+    # 2. Check external IP reachability (external WAN only; do NOT check local router gateway)
+    local ip_reachable=false
+    local targets=("${PING_TARGETS[@]:-1.1.1.1 8.8.8.8}")
     for target in "${targets[@]}"; do
         [ -z "$target" ] && continue
         if ping -c 1 -W 2 "$target" >/dev/null 2>&1; then
-            return 0
+            ip_reachable=true
+            break
         fi
     done
 
-    # 3. Check NetworkManager status if available
-    if command -v nmcli >/dev/null 2>&1; then
-        local nm_status
-        nm_status=$(nmcli -t -f CONNECTIVITY general status 2>/dev/null || nmcli networking connectivity 2>/dev/null)
-        if [ "$nm_status" = "full" ]; then
-            return 0
+    # 3. Check DNS resolution (essential for browser search to function)
+    local dns_working=false
+    local dns_domains=("${DNS_TARGETS[@]:-google.com cloudflare.com}")
+    for domain in "${dns_domains[@]}"; do
+        [ -z "$domain" ] && continue
+        if getent ahostsv4 "$domain" >/dev/null 2>&1 || getent hosts "$domain" >/dev/null 2>&1 || host -W 2 "$domain" >/dev/null 2>&1; then
+            dns_working=true
+            break
         fi
+    done
+
+    # If external IP is reachable AND DNS works, consider connection healthy
+    if [ "$ip_reachable" = true ] && [ "$dns_working" = true ]; then
+        return 0
     fi
 
-    # 4. Check systemd-networkd status if available (common on minimal Arch setups)
-    if command -v networkctl >/dev/null 2>&1; then
-        if networkctl status 2>/dev/null | grep -qi "routable"; then
+    # 4. Fallback: Check NetworkManager active connectivity probe (only if DNS also resolves)
+    if command -v nmcli >/dev/null 2>&1; then
+        local nm_status
+        nm_status=$(nmcli networking connectivity check 2>/dev/null || nmcli -t -f CONNECTIVITY general status 2>/dev/null)
+        if [ "$nm_status" = "full" ] && [ "$dns_working" = true ]; then
             return 0
         fi
     fi

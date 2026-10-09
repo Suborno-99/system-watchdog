@@ -173,8 +173,9 @@ Customize settings in `config.conf`:
 CHECK_INTERVAL=4             # Frequency of routine health checks
 FAIL_CONFIRM_DELAY=4         # Delay timer to verify failure before taking action
 
-# Target endpoints for 10-internet.sh
-PING_TARGETS=("1.1.1.1" "8.8.8.8" "192.168.29.1")
+# Target endpoints for 10-internet.sh (external WAN only)
+PING_TARGETS=("1.1.1.1" "8.8.8.8" "9.9.9.9")
+DNS_TARGETS=("google.com" "cloudflare.com")
 
 # Desktop Notifications
 NOTIFY_ON_RECOVERY=true      # Send desktop notifications on recovery
