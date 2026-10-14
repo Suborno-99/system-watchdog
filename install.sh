@@ -76,8 +76,12 @@ for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
 # System Watchdog shortcuts
 alias watchdog="$HOME/.local/bin/watchdog"
 alias reconnect="$HOME/.local/bin/watchdog reconnect"
+alias fix-dns="$HOME/.local/bin/watchdog fix-dns"
 alias net-status="$HOME/.local/bin/watchdog status"
 EOF
+    elif [ -f "$rc_file" ] && ! grep -q "alias fix-dns=" "$rc_file"; then
+        echo "• Adding fix-dns alias to $rc_file..."
+        echo 'alias fix-dns="$HOME/.local/bin/watchdog fix-dns"' >> "$rc_file"
     fi
 done
 

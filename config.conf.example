@@ -12,6 +12,12 @@ PING_TARGETS=("1.1.1.1" "8.8.8.8" "9.9.9.9")
 # DNS Resolution Check Targets (Domains that must resolve for browser/web search)
 DNS_TARGETS=("google.com" "cloudflare.com")
 
+# DNS Auto-Healing & Fallback Settings
+AUTO_DNS_HEAL=true                   # Automatically apply fallback DNS if DNS fails or is hijacked
+FALLBACK_DNS="1.1.1.1 1.0.0.1"       # Primary & secondary IPv4 DNS servers (Cloudflare: 1.1.1.1 1.0.0.1, Google: 8.8.8.8 8.8.4.4)
+IGNORE_AUTO_DNS=true                 # Ignore DHCP-pushed ISP DNS to prevent sluggish or broken DNS
+ENABLE_DNS_OVER_TLS=true             # Enable DNS-over-TLS (DoT) for encrypted & tamper-resistant queries
+
 # Network Interface & Profile Defaults (auto-detected if blank)
 DEFAULT_INTERFACE=""         # e.g., "enp2s0" (leave empty for auto-detect)
 DEFAULT_PROFILE=""           # e.g., "Profile 1" (leave empty for auto-detect)

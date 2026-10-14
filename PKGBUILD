@@ -1,6 +1,6 @@
 # Maintainer: Suborno Das <suborno.das@remedio.co.in>
 pkgname=system-watchdog
-pkgver=1.0.0
+pkgver=1.1.0
 pkgrel=1
 pkgdesc="Lightweight, pluggable health-monitoring and auto-recovery daemon for Linux"
 arch=('any')

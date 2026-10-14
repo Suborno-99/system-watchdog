@@ -26,7 +26,8 @@ By default, NetworkManager retries 4 times and gives up, while minimal systems (
 **System Watchdog** runs in the background and takes care of it:
 1. **Health Checks:** Monitors gateway/DNS connectivity and critical services every 4 seconds.
 2. **Debounce Timer (4s):** When a drop occurs, it waits a configurable **4-second confirmation timer** to prevent false triggers from transient latency.
-3. **Escalating Multi-Backend Recovery:** Restores connectivity in seconds without a reboot.
+3. **Escalating Multi-Backend Recovery & DNS Healing:** Restores connectivity in seconds without a reboot.
+   - **Targeted DNS Auto-Heal & DNS-over-TLS:** Heals corrupted/hijacked DNS caches, applies high-speed fallback IPv4 DNS (`1.1.1.1 1.0.0.1`), ignores broken DHCP auto-DNS, and enables DNS-over-TLS (`resolvectl` / `nmcli`).
    - **NetworkManager** (`nmcli` profile reactivation & device bounce)
    - **systemd-networkd** (`networkctl reconfigure`)
    - **Universal Kernel Link Bounce** (`ip link` down/up + DHCP renewal)
@@ -108,9 +109,10 @@ system-watchdog/
 
 | Command | Description |
 |---|---|
-| `watchdog status` | Check running state (PID), active modules, and recent logs |
+| `watchdog status` | Check running state (PID), active modules, DNS info, and recent logs |
 | `watchdog test` | Run all health checks once and print `[PASSED]` / `[FAILED]` |
-| `watchdog reconnect` | Trigger recovery actions immediately without waiting |
+| `watchdog reconnect` | Trigger network recovery actions immediately without waiting |
+| `watchdog fix-dns` | Flush DNS caches & apply robust IPv4 fallback DNS (1.1.1.1 / DoT) |
 | `watchdog list` | List all installed check and action modules |
 | `watchdog logs` | Stream live daemon logs (`tail -f`) |
 | `watchdog start` | Start the background daemon |
@@ -176,6 +178,12 @@ FAIL_CONFIRM_DELAY=4         # Delay timer to verify failure before taking actio
 # Target endpoints for 10-internet.sh (external WAN only)
 PING_TARGETS=("1.1.1.1" "8.8.8.8" "9.9.9.9")
 DNS_TARGETS=("google.com" "cloudflare.com")
+
+# DNS Auto-Healing & Fallback Settings
+AUTO_DNS_HEAL=true                   # Automatically apply fallback DNS if DNS fails or is hijacked
+FALLBACK_DNS="1.1.1.1 1.0.0.1"       # Primary & secondary IPv4 DNS (Cloudflare: 1.1.1.1 1.0.0.1, Google: 8.8.8.8 8.8.4.4)
+IGNORE_AUTO_DNS=true                 # Ignore DHCP-pushed ISP DNS to prevent sluggish or broken DNS
+ENABLE_DNS_OVER_TLS=true             # Enable DNS-over-TLS (DoT) for encrypted resolution
 
 # Desktop Notifications
 NOTIFY_ON_RECOVERY=true      # Send desktop notifications on recovery
